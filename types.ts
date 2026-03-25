@@ -1,0 +1,143 @@
+import React from 'react';
+
+export interface FeatureCardProps {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  colorClass: string;
+}
+
+export interface NavItem {
+  label: string;
+  href: string;
+}
+
+export enum ChatRole {
+  USER = 'user',
+  MODEL = 'model'
+}
+
+export interface ChatMessage {
+  role: ChatRole;
+  text: string;
+}
+
+// Added new view states
+export type ViewState = 
+  | 'landing' 
+  | 'dashboard' 
+  | 'documents' 
+  | 'groups' 
+  | 'group-chat'
+  | 'directory' 
+  | 'calendar' 
+  | 'ai-search' 
+  | 'requests'
+  | 'my-tasks'
+  | 'hr-view'
+  | 'stats-view'; // Added stats-view
+
+export type LandingView = 'HOME' | 'FEATURES' | 'AI' | 'GROUPS';
+
+export const DEPARTMENTS = [
+  'MARKETING',
+  'PRODUCT_AND_TECH',
+  'OPERATIONS',
+  'STAFF',
+  'STRATEGIC_ACCOUNTS',
+  'FINANCE'
+] as const;
+
+export type Department = typeof DEPARTMENTS[number];
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: Department;
+  avatar: string;
+  onboardingCompleted: boolean;
+  skills?: string[];        // New field
+  currentProjects?: string[]; // New field
+}
+
+export interface DocumentPermission {
+    userId?: string;
+    groupId?: string; // Can be a Department
+    access: 'READ' | 'EDIT';
+}
+
+export interface DocumentVersion {
+  id: string;
+  version: string;
+  date: string;
+  author: string;
+  changes: string;
+  url: string; // In real app, would be different URLs
+}
+
+export interface AppDocument {
+  id: string;
+  name: string;
+  type: string;
+  size: string;
+  date: string;
+  uploader: string;
+  department: Department;
+  url?: string;
+  tags: string[];
+  permissions: DocumentPermission[];
+  versions: DocumentVersion[];
+  aiDescription?: string; // New field for AI analysis
+  isPinned?: boolean;     // New field for pinning
+}
+
+export interface Notification {
+  id: string;
+  userId: string; // The recipient
+  title: string;
+  message: string;
+  type: 'SHARE' | 'EDIT' | 'SYSTEM';
+  read: boolean;
+  date: string;
+}
+
+export type RequestStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
+
+export interface RequestStep {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface ServiceRequest {
+  id: string;
+  title: string;
+  description: string;
+  department: Department;
+  assignedTo: string; // Name of person
+  createdBy: string; // NEW: To distinguish my requests vs assigned tasks
+  status: RequestStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  steps: RequestStep[]; // AI Generated steps
+  createdAt: string;
+}
+
+// Group Chat Types
+export interface GroupMessage {
+    id: string;
+    sender: string;
+    avatar: string;
+    text: string;
+    timestamp: string;
+    isMe: boolean;
+}
+
+export interface Group {
+    id: string;
+    name: string;
+    members: number;
+    bg: string;
+    description: string;
+}
