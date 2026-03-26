@@ -1,8 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { AppDocument } from "../types";
 
-// Initialize the client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize the client lazily
+let aiClient: GoogleGenAI | null = null;
+
+const getAiClient = () => {
+  if (!aiClient) {
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || 'dummy_key_to_prevent_crash';
+    aiClient = new GoogleGenAI({ apiKey });
+  }
+  return aiClient;
+};
 
 const SYSTEM_INSTRUCTION_BASE = `
 Tu es "Conisia AI", l'assistant intelligent de l'intranet de MyUnisoft.
@@ -45,7 +53,7 @@ export const askConisia = async (query: string, documentContext: AppDocument[] =
       config.tools = [{ googleSearch: {} }];
     }
 
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: 'gemini-2.5-flash',
       contents: query,
       config: config,
@@ -72,7 +80,7 @@ export const summarizeFile = async (docName: string, docContext: AppDocument[]):
       Si tu n'as pas accès au contenu complet, base-toi sur le titre, les tags et la description fournie pour déduire son utilité.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt
     });
@@ -98,7 +106,7 @@ export const analyzeRequestAndGenerateSteps = async (
       Format de réponse attendu: JSON Array of strings.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
@@ -114,7 +122,7 @@ export const analyzeRequestAndGenerateSteps = async (
 
 export const analyzeImageContent = async (base64Data: string, mimeType: string): Promise<string> => {
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAiClient().models.generateContent({
             model: 'gemini-3-pro-preview', // Requested model for image analysis
             contents: {
                 parts: [
