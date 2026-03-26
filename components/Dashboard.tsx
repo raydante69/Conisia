@@ -27,6 +27,7 @@ import { RequestsView } from './RequestsView';
 import { MyTasksView } from './MyTasksView';
 import { GroupChatView } from './GroupChatView';
 import { StatsView } from './StatsView';
+import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { useData } from '../contexts/DataContext';
 import { Button } from './Button';
 
@@ -402,6 +403,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -485,9 +487,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
         </nav>
 
         <div className="p-6 border-t border-slate-100">
-           <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 mb-4 cursor-pointer hover:bg-slate-100 transition-colors border border-slate-100">
+           <div 
+             className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 mb-4 cursor-pointer hover:bg-slate-100 transition-colors border border-slate-100"
+             onClick={() => setIsProfileModalOpen(true)}
+           >
               {user.avatar ? (
-                 <div className="w-10 h-10 rounded-full bg-slate-300 bg-cover bg-center border-2 border-white shadow-sm" style={{backgroundImage: `url(${user.avatar})`}} />
+                 <div className="w-10 h-10 rounded-full bg-slate-300 bg-cover bg-center border-2 border-white shadow-sm" style={{backgroundImage: `url("${user.avatar}")`}} />
               ) : (
                  <div className="w-10 h-10 rounded-full bg-slate-300 border-2 border-white shadow-sm flex items-center justify-center text-slate-500"><Users size={20} /></div>
               )}
@@ -609,6 +614,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
            </div>
         </main>
       </div>
+      <ProfileSettingsModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
     </div>
   );
 };

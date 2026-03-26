@@ -66,11 +66,6 @@ export const ProfileSetup: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Preview
-    const imageUrl = URL.createObjectURL(file);
-    setUploadedImage(imageUrl);
-    setFormData(prev => ({ ...prev, avatar: imageUrl }));
-    
     // AI Analysis
     setIsAnalyzing(true);
     setAiDescription('');
@@ -79,13 +74,43 @@ export const ProfileSetup: React.FC = () => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onloadend = async () => {
-            const base64String = reader.result as string;
-            // Remove data:image/xxx;base64, prefix
-            const base64Data = base64String.split(',')[1];
-            
-            const result = await analyzeImageContent(base64Data, file.type);
-            setAiDescription(result);
-            setIsAnalyzing(false);
+            const img = new Image();
+            img.src = reader.result as string;
+            img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 400;
+                const MAX_HEIGHT = 400;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                
+                // Set uploaded image to base64 string for saving to Firestore
+                setUploadedImage(dataUrl);
+                setFormData(prev => ({ ...prev, avatar: dataUrl }));
+
+                // Remove data:image/xxx;base64, prefix for Gemini
+                const base64Data = dataUrl.split(',')[1];
+                
+                const result = await analyzeImageContent(base64Data, file.type);
+                setAiDescription(result);
+                setIsAnalyzing(false);
+            };
         };
     } catch (error) {
         console.error("Error analyzing image:", error);

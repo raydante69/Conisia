@@ -44,7 +44,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Auth Listener
   useEffect(() => {
+    let unsubUserDoc: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (unsubUserDoc) {
+        unsubUserDoc();
+        unsubUserDoc = null;
+      }
+
       if (user) {
         // Check if user exists in Firestore
         const userRef = doc(db, 'users', user.uid);
@@ -67,7 +74,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           // Listen to user profile changes
-          onSnapshot(userRef, (docSnap) => {
+          unsubUserDoc = onSnapshot(userRef, (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               setCurrentUser({
@@ -93,7 +100,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthReady(true);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (unsubUserDoc) unsubUserDoc();
+    };
   }, []);
 
   // Data Listeners
@@ -222,7 +232,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!currentUser) return;
     try {
       const userRef = doc(db, 'users', currentUser.id);
-      await updateDoc(userRef, data as any);
+      
+      const firestoreData: any = { ...data };
+      if (data.name !== undefined) {
+        firestoreData.displayName = data.name;
+        delete firestoreData.name;
+      }
+      if (data.avatar !== undefined) {
+        firestoreData.photoURL = data.avatar;
+        delete firestoreData.avatar;
+      }
+
+      await updateDoc(userRef, firestoreData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'users');
     }

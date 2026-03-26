@@ -22,7 +22,7 @@ Instructions de formatage :
 4. Si on te pose une question sur un document spécifique, vérifie s'il est dans la liste fournie.
 `;
 
-export const askConisia = async (query: string, documentContext: AppDocument[] = [], useWeb: boolean = false): Promise<string> => {
+export const askConisia = async (query: string, documentContext: AppDocument[] = []): Promise<string> => {
   try {
     // Construct context string from documents
     const docList = documentContext.map(d => 
@@ -34,24 +34,11 @@ export const askConisia = async (query: string, documentContext: AppDocument[] =
     ${docList}
     `;
 
-    if (useWeb) {
-        contextInstruction += `
-        \nIMPORTANT : L'utilisateur a activé la recherche WEB.
-        Tu as accès à l'outil 'googleSearch'. Utilise-le pour trouver des informations RÉELLES et À JOUR sur internet si la demande de l'utilisateur le nécessite (ex: actualités, lois récentes, concurrents, définitions générales).
-        Si la réponse vient du web, cite tes sources ou mentionne que l'info est externe.
-        `;
-    } else {
-        contextInstruction += `\nUtilise ces informations internes pour répondre. Si l'utilisateur cherche un document, indique-lui s'il existe.`;
-    }
+    contextInstruction += `\nUtilise ces informations internes pour répondre. Si l'utilisateur cherche un document, indique-lui s'il existe.`;
 
     const config: any = {
       systemInstruction: SYSTEM_INSTRUCTION_BASE + contextInstruction,
     };
-
-    // Add Google Search tool if requested
-    if (useWeb) {
-      config.tools = [{ googleSearch: {} }];
-    }
 
     const response = await getAiClient().models.generateContent({
       model: 'gemini-3-flash-preview',

@@ -6,12 +6,11 @@ import { ChatMessage, ChatRole } from '../types';
 import { useData } from '../contexts/DataContext';
 
 export const IntelligentSearch: React.FC = () => {
-  const { documents } = useData(); // Get documents for context
+  const { documents, currentUser } = useData(); // Get documents for context
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [useWeb, setUseWeb] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: ChatRole.MODEL, text: "Bonjour ! Je suis l'IA de Conisia. Je peux retrouver des documents, résumer des procédures ou chercher sur le web. Que cherchez-vous ?" }
+    { role: ChatRole.MODEL, text: "Bonjour ! Je suis l'IA de Conisia. Je peux retrouver des documents et résumer des procédures. Que cherchez-vous ?" }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -33,8 +32,15 @@ export const IntelligentSearch: React.FC = () => {
     // Add user message
     setMessages(prev => [...prev, { role: ChatRole.USER, text: userMsg }]);
 
-    // Call Gemini with document context & Web Search option
-    const responseText = await askConisia(userMsg, documents, useWeb);
+    let responseText = "";
+    if (!currentUser) {
+      // Mock response for landing page
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+      responseText = "Merci d'utiliser Conisia Brain pour vos question !";
+    } else {
+      // Call Gemini with document context & Web Search option
+      responseText = await askConisia(userMsg, documents, false);
+    }
 
     // Add model response
     setMessages(prev => [...prev, { role: ChatRole.MODEL, text: responseText }]);
@@ -87,7 +93,7 @@ export const IntelligentSearch: React.FC = () => {
             Recherche <span className="text-transparent bg-clip-text bg-gradient-to-r from-fealty-green to-emerald-600">Contextuelle</span>
           </h2>
           <p className="text-slate-500 max-w-2xl mx-auto">
-            Posez vos questions sur vos documents ou sur le web. Conisia analyse le contenu en temps réel.
+            Posez vos questions sur vos documents. Conisia analyse le contenu en temps réel.
           </p>
         </div>
 
@@ -106,15 +112,6 @@ export const IntelligentSearch: React.FC = () => {
                         </p>
                     </div>
                   </div>
-                  
-                  {/* Web Search Toggle */}
-                  <button 
-                    onClick={() => setUseWeb(!useWeb)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${useWeb ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
-                  >
-                      <Globe size={14} />
-                      {useWeb ? 'Web Actif' : 'Interne Uniquement'}
-                  </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -172,7 +169,7 @@ export const IntelligentSearch: React.FC = () => {
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      placeholder={useWeb ? "Recherchez sur le web ou dans vos docs..." : "Posez une question sur vos documents..."}
+                      placeholder="Posez une question sur vos documents..."
                       className="w-full pl-6 pr-14 py-4 rounded-full bg-slate-100 border-none focus:ring-2 focus:ring-fealty-green transition-all shadow-inner text-slate-800 placeholder:text-slate-400"
                     />
                     <button 
@@ -191,31 +188,31 @@ export const IntelligentSearch: React.FC = () => {
             <h3 className="text-xl font-bold text-slate-800">Contexte Actuel :</h3>
             
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <p className="text-xs font-bold text-slate-400 uppercase mb-4">Documents indexés</p>
+                <p className="text-xs font-bold text-slate-400 uppercase mb-4">
+                  {currentUser ? "Documents indexés" : "Exemple de documents indexés"}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                    {documents.slice(0, 5).map(d => (
-                        <span key={d.id} className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-600 truncate max-w-[150px]">
-                            {d.name}
-                        </span>
-                    ))}
-                    {documents.length > 5 && <span className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-400">+{documents.length - 5} autres</span>}
-                    {documents.length === 0 && <span className="text-xs text-slate-400 italic">Aucun document chargé</span>}
+                    {currentUser ? (
+                      <>
+                        {documents.slice(0, 5).map(d => (
+                            <span key={d.id} className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-600 truncate max-w-[150px]">
+                                {d.name}
+                            </span>
+                        ))}
+                        {documents.length > 5 && <span className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-400">+{documents.length - 5} autres</span>}
+                        {documents.length === 0 && <span className="text-xs text-slate-400 italic">Aucun document chargé</span>}
+                      </>
+                    ) : (
+                      <>
+                        <span className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-600 truncate max-w-[150px]">stratégie marketing</span>
+                        <span className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-600 truncate max-w-[150px]">plan commercial</span>
+                        <span className="px-2 py-1 bg-slate-100 rounded-md text-xs text-slate-600 truncate max-w-[150px]">projet client</span>
+                      </>
+                    )}
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-50">
                     <p className="text-sm text-slate-500">
-                        {useWeb 
-                            ? "Mode Web activé : L'IA peut accéder à Google Search pour enrichir ses réponses (Actualités, Données externes)." 
-                            : "Mode Interne : L'IA répond uniquement en se basant sur vos documents privés et ses connaissances générales."}
-                    </p>
-                </div>
-            </div>
-            
-            <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3 items-start">
-                <Globe className="text-blue-500 flex-shrink-0 mt-1" size={20} />
-                <div>
-                    <h4 className="font-bold text-blue-800 text-sm">Google Search</h4>
-                    <p className="text-blue-600 text-xs mt-1">
-                        Activez le mode web pour obtenir des informations à jour (cours de bourse, actualités légales, météo...).
+                        Mode Interne : L'IA répond uniquement en se basant sur vos documents privés et ses connaissances générales.
                     </p>
                 </div>
             </div>
