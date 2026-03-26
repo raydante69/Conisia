@@ -120,10 +120,13 @@ service cloud.firestore {
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
              data.status is string && data.status in ['pending', 'in-progress', 'completed'] &&
-             data.senderId is string && data.senderId == request.auth.uid &&
+             data.senderId is string &&
              data.recipientIds is list && data.recipientIds.size() <= 1000 &&
              data.createdAt is string &&
-             (!('department' in data) || (data.department is string && data.department.size() < 100));
+             (!('department' in data) || (data.department is string && data.department.size() < 100)) &&
+             (!('assignedTo' in data) || (data.assignedTo is string && data.assignedTo.size() < 100)) &&
+             (!('priority' in data) || (data.priority is string && data.priority in ['LOW', 'MEDIUM', 'HIGH'])) &&
+             (!('steps' in data) || (data.steps is list && data.steps.size() <= 50));
     }
 
     function isValidGroupMessage(data) {
@@ -165,11 +168,11 @@ service cloud.firestore {
 
     match /requests/{requestId} {
       // Users can read requests they sent or received
-      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || request.auth.uid in resource.data.recipientIds);
-      allow create: if isAuthenticated() && isValidRequest(request.resource.data);
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || request.auth.uid in resource.data.recipientIds || resource.data.assignedTo == request.auth.uid);
+      allow create: if isAuthenticated() && isValidRequest(request.resource.data) && request.resource.data.senderId == request.auth.uid;
       // Sender can update status or details. Recipients can update status.
       allow update: if isAuthenticated() && 
-                    (resource.data.senderId == request.auth.uid || request.auth.uid in resource.data.recipientIds) &&
+                    (resource.data.senderId == request.auth.uid || request.auth.uid in resource.data.recipientIds || resource.data.assignedTo == request.auth.uid) &&
                     isValidRequest(request.resource.data) && 
                     request.resource.data.senderId == resource.data.senderId;
       allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
