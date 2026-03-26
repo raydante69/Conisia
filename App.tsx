@@ -23,19 +23,26 @@ const MainApp: React.FC = () => {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleLogin = () => {
-    // Simulate email from login
-    login('employe@myunisoft.fr');
-    setIsLoginModalOpen(false);
-    setCurrentView('dashboard');
-    window.scrollTo(0,0);
+  const handleLogin = async () => {
+    try {
+      await login();
+      setIsLoginModalOpen(false);
+      setCurrentView('dashboard');
+      window.scrollTo(0,0);
+    } catch (error) {
+      console.error("Login failed", error);
+    }
   };
 
-  const handleLogout = () => {
-    logout();
-    setCurrentView('landing');
-    setLandingView('HOME');
-    window.scrollTo(0,0);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setCurrentView('landing');
+      setLandingView('HOME');
+      window.scrollTo(0,0);
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
   };
 
   const navigateTo = (view: ViewState) => {

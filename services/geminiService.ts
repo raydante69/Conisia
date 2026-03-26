@@ -54,7 +54,7 @@ export const askConisia = async (query: string, documentContext: AppDocument[] =
     }
 
     const response = await getAiClient().models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: query,
       config: config,
     });
@@ -81,7 +81,7 @@ export const summarizeFile = async (docName: string, docContext: AppDocument[]):
     `;
 
     const response = await getAiClient().models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: prompt
     });
 
@@ -107,7 +107,7 @@ export const analyzeRequestAndGenerateSteps = async (
     `;
 
     const response = await getAiClient().models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
@@ -123,7 +123,7 @@ export const analyzeRequestAndGenerateSteps = async (
 export const analyzeImageContent = async (base64Data: string, mimeType: string): Promise<string> => {
     try {
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-3-pro-preview', // Requested model for image analysis
+            model: 'gemini-3.1-pro-preview', // Requested model for image analysis
             contents: {
                 parts: [
                     {

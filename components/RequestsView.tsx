@@ -7,7 +7,7 @@ import { Plus, MoreHorizontal, Sparkles, X, Loader2, Filter, Layers, CheckCircle
 import { analyzeRequestAndGenerateSteps } from '../services/geminiService';
 
 export const RequestsView: React.FC = () => {
-  const { requests, addRequest, updateRequestStatus, updateRequestDepartment } = useData();
+  const { requests, addRequest, updateRequestStatus, updateRequestDepartment, users } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [groupBy, setGroupBy] = useState<'STATUS' | 'DEPARTMENT'>('STATUS');
   
@@ -143,9 +143,11 @@ export const RequestsView: React.FC = () => {
                         <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                            <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-fealty-dark text-white flex items-center justify-center text-[10px] font-bold shadow-md">
-                                 {req.assignedTo.charAt(0)}
+                                 {req.assignedTo && req.assignedTo !== 'Unassigned' ? (users.find(u => u.id === req.assignedTo)?.name.charAt(0) || 'U') : 'U'}
                               </div>
-                              <span className="text-[10px] font-bold text-slate-400">{req.assignedTo.split(' ')[0]}</span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                 {req.assignedTo && req.assignedTo !== 'Unassigned' ? (users.find(u => u.id === req.assignedTo)?.name.split(' ')[0] || 'Unassigned') : 'Unassigned'}
+                              </span>
                            </div>
                            <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded-md font-mono">
                               {new Date(req.createdAt).toLocaleDateString('fr-FR', {day: '2-digit', month: 'short'})}
@@ -173,22 +175,30 @@ export const RequestsView: React.FC = () => {
 // --- Modern "Fealty" Style Create Request Modal ---
 
 const CreateRequestModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { addRequest } = useData();
+  const { addRequest, users, currentUser } = useData();
   const [step, setStep] = useState(1);
   const [loadingAI, setLoadingAI] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
   const [formData, setFormData] = useState<{
     department: Department;
     person: string;
+    personName: string;
     title: string;
     description: string;
     steps: RequestStep[];
   }>({
     department: 'MARKETING',
     person: '',
+    personName: '',
     title: '',
     description: '',
     steps: []
   });
+
+  const filteredUsers = users.filter(u => 
+      u.id !== currentUser?.id && 
+      u.name.toLowerCase().includes(userSearch.toLowerCase())
+  );
 
   const handleAIAnalysis = async () => {
     if (!formData.title || !formData.description) return;
@@ -204,14 +214,15 @@ const CreateRequestModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
       title: formData.title,
       description: formData.description,
       department: formData.department,
-      assignedTo: formData.person || 'Unassigned',
+      assignedTo: formData.person || 'Unassigned', // Store user ID here
       priority: 'MEDIUM',
       steps: formData.steps
     });
     onClose();
     setTimeout(() => {
         setStep(1);
-        setFormData({ department: 'MARKETING', person: '', title: '', description: '', steps: [] });
+        setFormData({ department: 'MARKETING', person: '', personName: '', title: '', description: '', steps: [] });
+        setUserSearch('');
     }, 300);
   };
 
@@ -262,15 +273,45 @@ const CreateRequestModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 relative">
                    <label className="text-sm font-bold text-slate-800 uppercase tracking-wider">Destinataire (Optionnel)</label>
-                   <input 
-                     type="text" 
-                     placeholder="Ex: Jean Dupont"
-                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-fealty-green outline-none font-medium text-slate-800 placeholder:text-slate-400 transition-all"
-                     value={formData.person}
-                     onChange={(e) => setFormData({...formData, person: e.target.value})}
-                   />
+                   {formData.person ? (
+                       <div className="flex items-center justify-between p-4 bg-fealty-light rounded-2xl border border-fealty-green">
+                           <span className="font-bold text-fealty-dark">{formData.personName}</span>
+                           <button onClick={() => setFormData({...formData, person: '', personName: ''})} className="text-slate-400 hover:text-red-500"><X size={16} /></button>
+                       </div>
+                   ) : (
+                       <div className="relative">
+                           <input 
+                             type="text" 
+                             placeholder="Rechercher un collègue..."
+                             className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-fealty-green outline-none font-medium text-slate-800 placeholder:text-slate-400 transition-all"
+                             value={userSearch}
+                             onChange={(e) => setUserSearch(e.target.value)}
+                           />
+                           {userSearch && (
+                               <div className="absolute top-full left-0 w-full bg-white border border-slate-100 rounded-xl mt-1 shadow-xl max-h-40 overflow-y-auto z-20">
+                                   {filteredUsers.length > 0 ? (
+                                       filteredUsers.map(u => (
+                                           <div 
+                                               key={u.id} 
+                                               onClick={() => {
+                                                   setFormData({...formData, person: u.id, personName: u.name});
+                                                   setUserSearch('');
+                                               }}
+                                               className="p-3 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
+                                           >
+                                               <span className="text-sm font-medium text-slate-800">{u.name}</span>
+                                               <span className="text-xs text-slate-400">{u.role || u.department}</span>
+                                           </div>
+                                       ))
+                                   ) : (
+                                       <div className="p-3 text-xs text-slate-400 text-center">Aucun résultat</div>
+                                   )}
+                               </div>
+                           )}
+                       </div>
+                   )}
                 </div>
 
                 <div className="pt-4">

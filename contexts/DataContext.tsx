@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, AppDocument, ServiceRequest, Notification, Department, DocumentVersion, Group } from '../types';
+import { auth, db, signInWithGoogle, logOut, handleFirestoreError, OperationType } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, doc, setDoc, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
 interface DataContextType {
   currentUser: UserProfile | null;
@@ -7,8 +10,9 @@ interface DataContextType {
   requests: ServiceRequest[];
   notifications: Notification[];
   groups: Group[];
-  login: (email: string) => void;
-  logout: () => void;
+  users: UserProfile[];
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
   updateProfile: (profile: Partial<UserProfile>) => void;
   addDocument: (doc: Omit<AppDocument, 'id' | 'date' | 'permissions' | 'versions' | 'tags'>) => void;
   addTagToDocument: (docId: string, tag: string) => void;
@@ -29,186 +33,354 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// PRODUCTION INITIAL STATE: EMPTY
-const INITIAL_DOCS: AppDocument[] = [];
-const INITIAL_REQUESTS: ServiceRequest[] = [];
-const INITIAL_NOTIFICATIONS: Notification[] = [
-    { 
-        id: 'welcome', 
-        userId: 'me', 
-        title: 'Bienvenue sur Conisia', 
-        message: 'Votre espace de travail est prêt. Commencez par configurer votre profil ou uploader un document.', 
-        type: 'SYSTEM', 
-        read: false, 
-        date: 'À l\'instant' 
-    }
-];
-const INITIAL_GROUPS: Group[] = [];
-
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [documents, setDocuments] = useState<AppDocument[]>(INITIAL_DOCS);
-  const [requests, setRequests] = useState<ServiceRequest[]>(INITIAL_REQUESTS);
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
-  const [groups, setGroups] = useState<Group[]>(INITIAL_GROUPS);
+  const [documents, setDocuments] = useState<AppDocument[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
-  // Load from LocalStorage on mount (Production Keys)
+  // Auth Listener
   useEffect(() => {
-    const savedUser = localStorage.getItem('conisia_prod_user');
-    const savedDocs = localStorage.getItem('conisia_prod_docs');
-    const savedReqs = localStorage.getItem('conisia_prod_reqs');
-    const savedNotifs = localStorage.getItem('conisia_prod_notifs');
-    const savedGroups = localStorage.getItem('conisia_prod_groups');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Check if user exists in Firestore
+        const userRef = doc(db, 'users', user.uid);
+        try {
+          const userSnap = await getDoc(userRef);
+          if (!userSnap.exists()) {
+            // Create new user
+            await setDoc(userRef, {
+              uid: user.uid,
+              displayName: user.displayName || 'Utilisateur',
+              email: user.email || '',
+              photoURL: user.photoURL || '',
+              createdAt: new Date().toISOString(),
+              role: '',
+              department: 'STAFF',
+              onboardingCompleted: false,
+              skills: [],
+              currentProjects: []
+            });
+          }
+          
+          // Listen to user profile changes
+          onSnapshot(userRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setCurrentUser({
+                id: data.uid,
+                name: data.displayName,
+                email: data.email,
+                role: data.role || '',
+                department: data.department || 'STAFF',
+                avatar: data.photoURL || '',
+                onboardingCompleted: data.onboardingCompleted || false,
+                skills: data.skills || [],
+                currentProjects: data.currentProjects || []
+              });
+            }
+          }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
+          
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, 'users');
+        }
+      } else {
+        setCurrentUser(null);
+      }
+      setIsAuthReady(true);
+    });
 
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
-    if (savedDocs) setDocuments(JSON.parse(savedDocs));
-    if (savedReqs) setRequests(JSON.parse(savedReqs));
-    if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
-    if (savedGroups) setGroups(JSON.parse(savedGroups));
+    return () => unsubscribe();
   }, []);
 
-  // Save changes
+  // Data Listeners
   useEffect(() => {
-    if (currentUser) localStorage.setItem('conisia_prod_user', JSON.stringify(currentUser));
-    localStorage.setItem('conisia_prod_docs', JSON.stringify(documents));
-    localStorage.setItem('conisia_prod_reqs', JSON.stringify(requests));
-    localStorage.setItem('conisia_prod_notifs', JSON.stringify(notifications));
-    localStorage.setItem('conisia_prod_groups', JSON.stringify(groups));
-  }, [currentUser, documents, requests, notifications, groups]);
+    if (!isAuthReady || !currentUser) return;
 
-  const login = (email: string) => {
-    const user: UserProfile = {
-      id: 'me', 
-      email,
-      name: '',
-      role: '',
-      department: 'STAFF',
-      avatar: '',
-      onboardingCompleted: false,
-      skills: [],
-      currentProjects: []
+    // Listen to Documents
+    const qDocs = query(collection(db, 'documents'), where('ownerId', '==', currentUser.id));
+    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
+      const docsData: AppDocument[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        docsData.push({
+          id: doc.id,
+          name: data.name,
+          type: data.type,
+          size: data.size || '0 KB',
+          date: data.createdAt ? data.createdAt.split('T')[0] : '',
+          uploader: data.uploader || currentUser.name,
+          department: data.department || currentUser.department,
+          tags: data.tags || [],
+          permissions: data.permissions || [],
+          versions: data.versions || [],
+          aiDescription: data.aiDescription,
+          isPinned: data.isPinned || false,
+          url: data.url
+        });
+      });
+      setDocuments(docsData);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'documents'));
+
+    // Listen to Groups
+    const qGroups = query(collection(db, 'groups'), where('members', 'array-contains', currentUser.id));
+    const unsubGroups = onSnapshot(qGroups, (snapshot) => {
+      const groupsData: Group[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        groupsData.push({
+          id: doc.id,
+          name: data.name,
+          members: data.members || [],
+          bg: data.bg || 'bg-slate-100',
+          description: data.description || ''
+        });
+      });
+      setGroups(groupsData);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'groups'));
+
+    // Listen to Users
+    const qUsers = query(collection(db, 'users'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      const usersData: UserProfile[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        usersData.push({
+          id: data.uid,
+          name: data.displayName,
+          email: data.email,
+          role: data.role || '',
+          department: data.department || 'STAFF',
+          avatar: data.photoURL || '',
+          onboardingCompleted: data.onboardingCompleted || false,
+          skills: data.skills || [],
+          currentProjects: data.currentProjects || []
+        });
+      });
+      setUsers(usersData);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
+
+    // Listen to Requests (Sent or Received)
+    const qRequestsSent = query(collection(db, 'requests'), where('senderId', '==', currentUser.id));
+    const qRequestsReceived = query(collection(db, 'requests'), where('assignedTo', '==', currentUser.id));
+    
+    const handleRequestsSnapshot = (snapshot: any, type: 'sent' | 'received') => {
+      setRequests(prev => {
+        const newReqs = [...prev];
+        snapshot.docChanges().forEach((change: any) => {
+          const data = change.doc.data();
+          const req: ServiceRequest = {
+            id: change.doc.id,
+            title: data.title,
+            description: data.description,
+            department: data.department || 'STAFF',
+            assignedTo: data.assignedTo || '',
+            createdBy: data.senderId === currentUser.id ? 'me' : data.senderId, // Store sender ID
+            status: data.status === 'pending' ? 'TODO' : data.status === 'in-progress' ? 'IN_PROGRESS' : 'DONE',
+            priority: data.priority || 'MEDIUM',
+            steps: data.steps || [],
+            createdAt: data.createdAt ? data.createdAt.split('T')[0] : ''
+          };
+
+          if (change.type === 'added' || change.type === 'modified') {
+            const index = newReqs.findIndex(r => r.id === req.id);
+            if (index >= 0) newReqs[index] = req;
+            else newReqs.push(req);
+          } else if (change.type === 'removed') {
+            const index = newReqs.findIndex(r => r.id === req.id);
+            if (index >= 0) newReqs.splice(index, 1);
+          }
+        });
+        return newReqs;
+      });
     };
-    setCurrentUser(user);
+
+    const unsubRequestsSent = onSnapshot(qRequestsSent, (snapshot) => handleRequestsSnapshot(snapshot, 'sent'), (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
+    const unsubRequestsReceived = onSnapshot(qRequestsReceived, (snapshot) => handleRequestsSnapshot(snapshot, 'received'), (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
+
+    return () => {
+      unsubDocs();
+      unsubGroups();
+      unsubUsers();
+      unsubRequestsSent();
+      unsubRequestsReceived();
+    };
+  }, [isAuthReady, currentUser]);
+
+  const login = async () => {
+    await signInWithGoogle();
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('conisia_prod_user');
+  const logout = async () => {
+    await logOut();
   };
 
-  const updateProfile = (data: Partial<UserProfile>) => {
+  const updateProfile = async (data: Partial<UserProfile>) => {
     if (!currentUser) return;
-    setCurrentUser({ ...currentUser, ...data });
+    try {
+      const userRef = doc(db, 'users', currentUser.id);
+      await updateDoc(userRef, data as any);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
+    }
   };
 
-  const addDocument = (doc: Omit<AppDocument, 'id' | 'date' | 'permissions' | 'versions' | 'tags'>) => {
-    const newDoc: AppDocument = {
-      ...doc,
-      id: Date.now().toString(),
-      date: new Date().toISOString().split('T')[0],
-      permissions: [],
-      versions: [{
-          id: Date.now().toString() + 'v1',
+  const addDocument = async (docData: Omit<AppDocument, 'id' | 'date' | 'permissions' | 'versions' | 'tags'>) => {
+    if (!currentUser) return;
+    try {
+      const newDocRef = doc(collection(db, 'documents'));
+      await setDoc(newDocRef, {
+        id: newDocRef.id,
+        name: docData.name,
+        type: docData.type,
+        size: docData.size,
+        uploader: docData.uploader,
+        department: docData.department,
+        url: docData.url || '',
+        tags: [],
+        permissions: [],
+        versions: [{
+          id: newDocRef.id + 'v1',
           version: '1.0',
           date: new Date().toISOString().split('T')[0],
-          author: currentUser?.name || 'Moi',
+          author: currentUser.name,
           changes: 'Version initiale',
-          url: doc.url || '#'
-      }],
-      tags: [],
-      isPinned: false
-    };
-    setDocuments(prev => [newDoc, ...prev]);
+          url: docData.url || '#'
+        }],
+        ownerId: currentUser.id,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'documents');
+    }
   };
 
-  const addTagToDocument = (docId: string, tag: string) => {
-      setDocuments(prev => prev.map(doc => {
-          if (doc.id === docId && !doc.tags.includes(tag)) {
-              return { ...doc, tags: [...doc.tags, tag] };
-          }
-          return doc;
-      }));
+  const addTagToDocument = async (docId: string, tag: string) => {
+    const docToUpdate = documents.find(d => d.id === docId);
+    if (!docToUpdate || docToUpdate.tags.includes(tag)) return;
+    try {
+      await updateDoc(doc(db, 'documents', docId), {
+        tags: [...docToUpdate.tags, tag]
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'documents');
+    }
   };
 
-  const removeTagFromDocument = (docId: string, tag: string) => {
-      setDocuments(prev => prev.map(doc => {
-          if (doc.id === docId) {
-              return { ...doc, tags: doc.tags.filter(t => t !== tag) };
-          }
-          return doc;
-      }));
+  const removeTagFromDocument = async (docId: string, tag: string) => {
+    const docToUpdate = documents.find(d => d.id === docId);
+    if (!docToUpdate) return;
+    try {
+      await updateDoc(doc(db, 'documents', docId), {
+        tags: docToUpdate.tags.filter(t => t !== tag)
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'documents');
+    }
   };
 
-  const shareDocument = (docId: string, targetId: string, type: 'USER' | 'GROUP', access: 'READ' | 'EDIT') => {
-      setDocuments(prev => prev.map(doc => {
-          if (doc.id === docId) {
-             const newPerm = {
-                 userId: type === 'USER' ? targetId : undefined,
-                 groupId: type === 'GROUP' ? targetId : undefined,
-                 access
-             };
-             return { ...doc, permissions: [...doc.permissions, newPerm] };
-          }
-          return doc;
-      }));
-
-      const notif: Notification = {
-          id: Date.now().toString(),
-          userId: 'target',
-          title: 'Nouveau partage',
-          message: `${currentUser?.name || 'Un utilisateur'} a partagé un document avec ${type === 'GROUP' ? 'votre groupe' : 'vous'}.`,
-          type: 'SHARE',
-          read: false,
-          date: 'À l\'instant'
+  const shareDocument = async (docId: string, targetId: string, type: 'USER' | 'GROUP', access: 'READ' | 'EDIT') => {
+    const docToUpdate = documents.find(d => d.id === docId);
+    if (!docToUpdate) return;
+    try {
+      const newPerm = {
+        userId: type === 'USER' ? targetId : undefined,
+        groupId: type === 'GROUP' ? targetId : undefined,
+        access
       };
-      setNotifications(prev => [notif, ...prev]);
+      await updateDoc(doc(db, 'documents', docId), {
+        permissions: [...docToUpdate.permissions, newPerm]
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'documents');
+    }
   };
 
-  const addRequest = (req: Omit<ServiceRequest, 'id' | 'createdAt' | 'status'>) => {
-    const newReq: ServiceRequest = {
-      ...req,
-      id: 'req-' + Date.now().toString(),
-      status: 'TODO',
-      createdBy: 'me',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setRequests(prev => [newReq, ...prev]);
+  const addRequest = async (req: Omit<ServiceRequest, 'id' | 'createdAt' | 'status'>) => {
+    if (!currentUser) return;
+    try {
+      const newReqRef = doc(collection(db, 'requests'));
+      await setDoc(newReqRef, {
+        id: newReqRef.id,
+        title: req.title,
+        description: req.description,
+        department: req.department,
+        status: 'pending',
+        senderId: currentUser.id,
+        recipientIds: [], // In a real app, populate this based on assignedTo or department
+        priority: req.priority,
+        steps: req.steps || [],
+        assignedTo: req.assignedTo,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'requests');
+    }
   };
 
-  const updateRequestStatus = (id: string, status: ServiceRequest['status']) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+  const updateRequestStatus = async (id: string, status: ServiceRequest['status']) => {
+    try {
+      const fbStatus = status === 'TODO' ? 'pending' : status === 'IN_PROGRESS' ? 'in-progress' : 'completed';
+      await updateDoc(doc(db, 'requests', id), { status: fbStatus });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'requests');
+    }
   };
 
-  const updateRequestPriority = (id: string, priority: ServiceRequest['priority']) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, priority } : r));
+  const updateRequestPriority = async (id: string, priority: ServiceRequest['priority']) => {
+    try {
+      await updateDoc(doc(db, 'requests', id), { priority });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'requests');
+    }
   };
   
-  const updateRequestDepartment = (id: string, department: Department) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, department } : r));
+  const updateRequestDepartment = async (id: string, department: Department) => {
+    try {
+      await updateDoc(doc(db, 'requests', id), { department });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'requests');
+    }
   };
 
-  const toggleRequestStep = (reqId: string, stepId: string) => {
-    setRequests(prev => prev.map(r => {
-        if (r.id === reqId && r.steps) {
-            return {
-                ...r,
-                steps: r.steps.map(s => s.id === stepId ? { ...s, completed: !s.completed } : s)
-            };
-        }
-        return r;
-    }));
+  const toggleRequestStep = async (reqId: string, stepId: string) => {
+    const reqToUpdate = requests.find(r => r.id === reqId);
+    if (!reqToUpdate || !reqToUpdate.steps) return;
+    try {
+      const updatedSteps = reqToUpdate.steps.map(s => s.id === stepId ? { ...s, completed: !s.completed } : s);
+      await updateDoc(doc(db, 'requests', reqId), { steps: updatedSteps });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'requests');
+    }
   };
 
-  const deleteDocument = (id: string) => {
-    setDocuments(prev => prev.filter(d => d.id !== id));
+  const deleteDocument = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'documents', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'documents');
+    }
   };
 
-  const togglePinDocument = (id: string) => {
-      setDocuments(prev => prev.map(d => d.id === id ? { ...d, isPinned: !d.isPinned } : d));
+  const togglePinDocument = async (id: string) => {
+    const docToUpdate = documents.find(d => d.id === id);
+    if (!docToUpdate) return;
+    try {
+      await updateDoc(doc(db, 'documents', id), { isPinned: !docToUpdate.isPinned });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'documents');
+    }
   }
 
-  const updateDocumentDescription = (id: string, description: string) => {
-      setDocuments(prev => prev.map(d => d.id === id ? { ...d, aiDescription: description } : d));
+  const updateDocumentDescription = async (id: string, description: string) => {
+    try {
+      await updateDoc(doc(db, 'documents', id), { aiDescription: description });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'documents');
+    }
   }
 
   const markNotificationRead = (id: string) => {
@@ -219,12 +391,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const addGroup = (group: Omit<Group, 'id'>) => {
-      const newGroup: Group = {
-          ...group,
-          id: 'grp-' + Date.now()
-      };
-      setGroups(prev => [newGroup, ...prev]);
+  const addGroup = async (groupData: Omit<Group, 'id'>) => {
+    if (!currentUser) return;
+    try {
+      const newGroupRef = doc(collection(db, 'groups'));
+      await setDoc(newGroupRef, {
+        id: newGroupRef.id,
+        name: groupData.name,
+        members: [...groupData.members, currentUser.id], // Add current user as member
+        ownerId: currentUser.id,
+        bg: groupData.bg,
+        description: groupData.description,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'groups');
+    }
   }
 
   return (
@@ -234,6 +416,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       requests,
       notifications,
       groups,
+      users,
       login,
       logout,
       updateProfile,

@@ -1,5 +1,44 @@
 import React from 'react';
 
+// Firebase Types
+export interface FirebaseUser {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  createdAt: string;
+}
+
+export interface FirebaseDocument {
+  id: string;
+  name: string;
+  type: string;
+  tags: string[];
+  aiDescription?: string;
+  content?: string;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface FirebaseGroup {
+  id: string;
+  name: string;
+  members: string[];
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface FirebaseRequest {
+  id: string;
+  title: string;
+  description: string;
+  department?: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  senderId: string;
+  recipientIds: string[];
+  createdAt: string;
+}
+
 export interface FeatureCardProps {
   title: string;
   description: string;
@@ -127,17 +166,16 @@ export interface ServiceRequest {
 // Group Chat Types
 export interface GroupMessage {
     id: string;
-    sender: string;
-    avatar: string;
+    groupId: string;
+    senderId: string;
     text: string;
     timestamp: string;
-    isMe: boolean;
 }
 
 export interface Group {
     id: string;
     name: string;
-    members: number;
+    members: string[];
     bg: string;
     description: string;
 }

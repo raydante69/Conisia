@@ -37,16 +37,6 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-// Mock Database of Colleagues
-const MOCK_COLLEAGUES = [
-    { id: '1', name: 'Thomas Anderson', role: 'Dev' },
-    { id: '2', name: 'Sophie Martin', role: 'Marketing' },
-    { id: '3', name: 'Lucas Dubois', role: 'Sales' },
-    { id: '4', name: 'Emma Bernard', role: 'RH' },
-    { id: '5', name: 'Nathan Petit', role: 'Design' },
-    { id: '6', name: 'Julie Leroy', role: 'Compta' },
-];
-
 // Connected Widgets
 const HRDocsView = () => {
   const { documents, onNavigate } = useData() as any; // Using context
@@ -83,32 +73,33 @@ const HRDocsView = () => {
 };
 
 const DirectoryView = () => {
-    // In a real app with a backend, we would fetch users here.
-    // For this simulation, we'll just show the current user or an empty state.
-    const { currentUser } = useData();
+    const { currentUser, users } = useData();
 
     return (
         <div className="animate-fade-in">
              <h2 className="text-2xl font-bold text-fealty-dark mb-6">Annuaire</h2>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 <div className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-fealty-green shadow-sm cursor-pointer">
-                    <div className="relative">
-                       {currentUser?.avatar ? (
-                         <img src={currentUser.avatar} className="w-12 h-12 rounded-full object-cover" alt="User" />
-                       ) : (
-                         <div className="w-12 h-12 rounded-full bg-slate-200" />
-                       )}
-                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
-                    </div>
-                    <div>
-                       <p className="font-bold text-slate-800">{currentUser?.name} (Moi)</p>
-                       <p className="text-xs text-slate-500">{currentUser?.role}</p>
-                    </div>
-                 </div>
-                 {/* Empty placeholders for effect */}
-                 <div className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-sm">
-                    Aucun autre membre connecté
-                 </div>
+                 {users.map(u => (
+                     <div key={u.id} className={`flex items-center gap-4 p-4 bg-white rounded-2xl border shadow-sm cursor-pointer ${u.id === currentUser?.id ? 'border-fealty-green' : 'border-slate-100'}`}>
+                        <div className="relative">
+                           {u.avatar ? (
+                             <img src={u.avatar} className="w-12 h-12 rounded-full object-cover" alt={u.name} />
+                           ) : (
+                             <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold">{u.name.charAt(0)}</div>
+                           )}
+                           {u.id === currentUser?.id && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>}
+                        </div>
+                        <div>
+                           <p className="font-bold text-slate-800">{u.name} {u.id === currentUser?.id && '(Moi)'}</p>
+                           <p className="text-xs text-slate-500">{u.role || u.department}</p>
+                        </div>
+                     </div>
+                 ))}
+                 {users.length === 0 && (
+                     <div className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-sm">
+                        Aucun membre
+                     </div>
+                 )}
              </div>
         </div>
     );
@@ -133,7 +124,7 @@ const DashboardHome: React.FC<{user: UserProfile, onNavigate: (v: ViewState) => 
   // Calculate stats based on real data
   const docCount = documents.length;
   const reqCount = requests.length;
-  const tasksCount = requests.filter(r => r.assignedTo === 'me').length;
+  const tasksCount = requests.filter(r => r.assignedTo === user.id).length;
   const recentDocs = documents.slice(0, 4);
 
   return (
@@ -250,8 +241,8 @@ const DashboardHome: React.FC<{user: UserProfile, onNavigate: (v: ViewState) => 
   );
 };
 
-const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}) => {
-    const { groups, addGroup } = useData();
+const GroupsView: React.FC<{onNavigate: (v: ViewState, id?: string) => void}> = ({onNavigate}) => {
+    const { groups, addGroup, users, currentUser } = useData();
     const [isCreating, setIsCreating] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDesc, setNewGroupDesc] = useState('');
@@ -260,7 +251,8 @@ const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}
     const [memberSearch, setMemberSearch] = useState('');
     const [selectedMembers, setSelectedMembers] = useState<{id: string, name: string}[]>([]);
 
-    const filteredColleagues = MOCK_COLLEAGUES.filter(c => 
+    const filteredColleagues = users.filter(c => 
+        c.id !== currentUser?.id &&
         c.name.toLowerCase().includes(memberSearch.toLowerCase()) && 
         !selectedMembers.some(m => m.id === c.id)
     );
@@ -272,8 +264,8 @@ const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}
             name: newGroupName,
             description: newGroupDesc || 'Groupe de collaboration',
             bg: 'from-slate-700 to-slate-900', // Default styling
-            members: selectedMembers.length + 1 // +1 for creator
-        });
+            members: selectedMembers.map(m => m.id) // Pass array of user IDs
+        } as any); // We need to update addGroup signature in DataContext
         setIsCreating(false);
         setNewGroupName('');
         setNewGroupDesc('');
@@ -281,8 +273,8 @@ const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}
         setSelectedMembers([]);
     }
 
-    const addMember = (user: typeof MOCK_COLLEAGUES[0]) => {
-        setSelectedMembers([...selectedMembers, user]);
+    const addMember = (user: UserProfile) => {
+        setSelectedMembers([...selectedMembers, {id: user.id, name: user.name}]);
         setMemberSearch('');
     };
 
@@ -347,7 +339,7 @@ const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}
                                                 className="p-3 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
                                             >
                                                 <span className="text-sm font-medium text-slate-800">{c.name}</span>
-                                                <span className="text-xs text-slate-400">{c.role}</span>
+                                                <span className="text-xs text-slate-400">{c.role || c.department}</span>
                                             </div>
                                         ))
                                     ) : (
@@ -376,7 +368,7 @@ const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {groups.map((group, idx) => (
-                        <div key={idx} onClick={() => onNavigate('group-chat')} className="relative group overflow-hidden rounded-[2rem] bg-white shadow-sm border border-slate-100 hover:border-fealty-green hover:shadow-xl transition-all hover:-translate-y-2 cursor-pointer">
+                        <div key={idx} onClick={() => onNavigate('group-chat', group.id)} className="relative group overflow-hidden rounded-[2rem] bg-white shadow-sm border border-slate-100 hover:border-fealty-green hover:shadow-xl transition-all hover:-translate-y-2 cursor-pointer">
                             <div className={`h-28 bg-gradient-to-br ${group.bg} relative`}>
                             <div className="absolute -bottom-6 left-6 w-12 h-12 rounded-xl bg-white shadow-md flex items-center justify-center text-lg font-bold text-slate-800">
                                 {group.name.charAt(0)}
@@ -385,7 +377,7 @@ const GroupsView: React.FC<{onNavigate: (v: ViewState) => void}> = ({onNavigate}
                             <div className="p-6 pt-8">
                                 <div className="flex justify-between items-start mb-2">
                                     <h3 className="font-bold text-lg text-slate-800">{group.name}</h3>
-                                    <span className="px-2 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">{group.members} mb</span>
+                                    <span className="px-2 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">{group.members.length} mb</span>
                                 </div>
                                 <p className="text-sm text-slate-500 mb-6 line-clamp-2">{group.description}</p>
                                 <div className="flex items-center justify-between border-t border-slate-100 pt-4">
@@ -409,6 +401,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
   const { notifications, markNotificationRead, markAllNotificationsRead, documents, requests } = useData();
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -437,8 +430,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
       case 'requests': return <RequestsView />;
       case 'my-tasks': return <MyTasksView />;
       case 'stats-view': return <StatsView />;
-      case 'groups': return <GroupsView onNavigate={onNavigate} />;
-      case 'group-chat': return <GroupChatView onBack={() => onNavigate('groups')} />;
+      case 'groups': return <GroupsView onNavigate={(view, id) => { if(id) setSelectedGroupId(id); onNavigate(view); }} />;
+      case 'group-chat': return <GroupChatView groupId={selectedGroupId!} onBack={() => { setSelectedGroupId(null); onNavigate('groups'); }} />;
       case 'hr-view': return <HRDocsView />;
       case 'directory': return <DirectoryView />;
       case 'calendar': return <CalendarView />;

@@ -5,13 +5,13 @@ import { Button } from './Button';
 import { MoreHorizontal, Sparkles, Filter, Layers, AlertCircle, LayoutList, ArrowRight, CheckSquare, Activity, X, Calendar, User, Clock, AlertTriangle, Search, ChevronDown } from 'lucide-react';
 
 export const MyTasksView: React.FC = () => {
-  const { requests, updateRequestPriority, updateRequestDepartment, updateRequestStatus, toggleRequestStep } = useData();
+  const { requests, updateRequestPriority, updateRequestDepartment, updateRequestStatus, toggleRequestStep, currentUser, users } = useData();
   const [groupBy, setGroupBy] = useState<'PRIORITY' | 'DEPARTMENT' | 'STATUS'>('PRIORITY');
   const [selectedTask, setSelectedTask] = useState<ServiceRequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Filter for tasks assigned to 'me'
-  const myTasks = requests.filter(r => r.assignedTo === 'me');
+  const myTasks = requests.filter(r => r.assignedTo === currentUser?.id);
 
   // Apply search filter
   const filteredTasks = myTasks.filter(task => 
@@ -166,7 +166,9 @@ export const MyTasksView: React.FC = () => {
                         <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                            <div className="flex items-center gap-2">
                               <span className="text-[10px] uppercase font-bold text-slate-400">De:</span>
-                              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{task.createdBy}</span>
+                              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {task.createdBy === 'me' ? 'Moi' : (users.find(u => u.id === task.createdBy)?.name || 'Inconnu')}
+                              </span>
                            </div>
                            
                            {/* Quick Action Button - Only show if not already Done */}
@@ -243,7 +245,9 @@ export const MyTasksView: React.FC = () => {
                              <div className="w-8 h-8 rounded-full bg-white text-slate-500 flex items-center justify-center shadow-sm"><User size={16} /></div>
                              <div>
                                  <p className="text-[10px] text-slate-400 uppercase font-bold">Demandeur</p>
-                                 <p className="text-sm font-bold text-slate-800">{selectedTask.createdBy}</p>
+                                 <p className="text-sm font-bold text-slate-800">
+                                     {selectedTask.createdBy === 'me' ? 'Moi' : (users.find(u => u.id === selectedTask.createdBy)?.name || 'Inconnu')}
+                                 </p>
                              </div>
                          </div>
                          <div className="p-3 bg-slate-50 rounded-xl flex items-center gap-3">

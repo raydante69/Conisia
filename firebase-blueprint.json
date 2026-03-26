@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "photoURL": { "type": "string", "format": "uri", "description": "URL to user's profile picture" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "displayName", "email", "createdAt"]
+    },
+    "Document": {
+      "title": "Document",
+      "description": "A document uploaded or created by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Document ID" },
+        "name": { "type": "string", "description": "Document name" },
+        "type": { "type": "string", "description": "Document type (e.g., PDF, Word, Excel)" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags associated with the document" },
+        "aiDescription": { "type": "string", "description": "AI-generated description of the document" },
+        "content": { "type": "string", "description": "Raw content of the document" },
+        "ownerId": { "type": "string", "description": "UID of the user who owns the document" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Document creation timestamp" }
+      },
+      "required": ["id", "name", "type", "ownerId", "createdAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A group of users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Group ID" },
+        "name": { "type": "string", "description": "Group name" },
+        "members": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs in the group" },
+        "ownerId": { "type": "string", "description": "UID of the user who created the group" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Group creation timestamp" }
+      },
+      "required": ["id", "name", "members", "ownerId", "createdAt"]
+    },
+    "Request": {
+      "title": "Request",
+      "description": "A request sent from one user to others or a group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Request ID" },
+        "title": { "type": "string", "description": "Request title" },
+        "description": { "type": "string", "description": "Request description" },
+        "department": { "type": "string", "description": "Department the request is for" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed"], "description": "Status of the request" },
+        "senderId": { "type": "string", "description": "UID of the user who sent the request" },
+        "recipientIds": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs who received the request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Request creation timestamp" }
+      },
+      "required": ["id", "title", "description", "status", "senderId", "recipientIds", "createdAt"]
+    },
+    "GroupMessage": {
+      "title": "Group Message",
+      "description": "A message sent in a group chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Message ID" },
+        "groupId": { "type": "string", "description": "ID of the group this message belongs to" },
+        "senderId": { "type": "string", "description": "UID of the user who sent the message" },
+        "text": { "type": "string", "description": "Content of the message" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Message creation timestamp" }
+      },
+      "required": ["id", "groupId", "senderId", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Collection of users"
+    },
+    "documents/{documentId}": {
+      "schema": { "$ref": "#/entities/Document" },
+      "description": "Collection of documents"
+    },
+    "groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "Collection of groups"
+    },
+    "requests/{requestId}": {
+      "schema": { "$ref": "#/entities/Request" },
+      "description": "Collection of requests"
+    },
+    "group_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/GroupMessage" },
+      "description": "Collection of group messages"
+    }
+  }
+}

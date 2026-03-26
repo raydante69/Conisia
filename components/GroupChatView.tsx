@@ -2,29 +2,69 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GlassCard } from './GlassCard';
 import { Send, Paperclip, MoreVertical, Search, Phone, Video, Users, ArrowLeft } from 'lucide-react';
 import { GroupMessage } from '../types';
+import { useData } from '../contexts/DataContext';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, onSnapshot, addDoc } from 'firebase/firestore';
 
 interface GroupChatViewProps {
   onBack: () => void;
-  groupName?: string;
+  groupId: string;
 }
 
-export const GroupChatView: React.FC<GroupChatViewProps> = ({ onBack, groupName = "Discussion Groupe" }) => {
+export const GroupChatView: React.FC<GroupChatViewProps> = ({ onBack, groupId }) => {
+  const { groups, users, currentUser } = useData();
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const sendMessage = () => {
-    if (!inputValue.trim()) return;
-    const newMsg: GroupMessage = {
-      id: Date.now().toString(),
-      sender: 'Moi',
-      avatar: '',
+  const group = groups.find(g => g.id === groupId);
+  const groupName = group?.name || "Discussion Groupe";
+  const groupMembers = group?.members.map(memberId => users.find(u => u.id === memberId)).filter(Boolean) || [];
+
+  useEffect(() => {
+    if (!groupId) return;
+
+    const q = query(
+      collection(db, 'group_messages'),
+      where('groupId', '==', groupId),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: GroupMessage[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        msgs.push({
+          id: doc.id,
+          groupId: data.groupId,
+          senderId: data.senderId,
+          text: data.text,
+          timestamp: data.timestamp
+        });
+      });
+      setMessages(msgs);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'group_messages'));
+
+    return () => unsubscribe();
+  }, [groupId]);
+
+  const sendMessage = async () => {
+    if (!inputValue.trim() || !currentUser) return;
+    
+    const newMsg = {
+      groupId,
+      senderId: currentUser.id,
       text: inputValue,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isMe: true
+      timestamp: new Date().toISOString()
     };
-    setMessages([...messages, newMsg]);
-    setInputValue('');
+    
+    setInputValue(''); // Optimistic clear
+    
+    try {
+      await addDoc(collection(db, 'group_messages'), newMsg);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'group_messages');
+    }
   };
 
   useEffect(() => {
@@ -47,9 +87,20 @@ export const GroupChatView: React.FC<GroupChatViewProps> = ({ onBack, groupName 
           </GlassCard>
 
           <GlassCard className="flex-1 p-4 overflow-hidden flex flex-col">
-             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Users size={16} /> Membres</h4>
-             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm italic">
-                Vous êtes le seul membre
+             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Users size={16} /> Membres ({groupMembers.length})</h4>
+             <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+                {groupMembers.map((member: any) => (
+                    <div key={member.id} className="flex items-center gap-3">
+                        {member.avatar ? (
+                            <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
+                                {member.name.charAt(0)}
+                            </div>
+                        )}
+                        <span className="text-sm font-medium text-slate-700">{member.name} {member.id === currentUser?.id ? '(Moi)' : ''}</span>
+                    </div>
+                ))}
              </div>
           </GlassCard>
        </div>
@@ -75,22 +126,34 @@ export const GroupChatView: React.FC<GroupChatViewProps> = ({ onBack, groupName 
                     <p className="text-slate-400 text-sm">Démarrez la conversation...</p>
                 </div>
              )}
-             {messages.map((msg) => (
-                <div key={msg.id} className={`flex gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
-                   {!msg.isMe && <img src={msg.avatar} className="w-8 h-8 rounded-full mt-auto mb-1" alt={msg.sender} />}
-                   <div className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                      {!msg.isMe && <span className="text-xs text-slate-500 mb-1 ml-1">{msg.sender}</span>}
-                      <div className={`p-3 rounded-2xl text-sm shadow-sm ${
-                         msg.isMe 
-                         ? 'bg-conisia-purple text-white rounded-tr-sm' 
-                         : 'bg-white text-slate-700 border border-slate-100 rounded-tl-sm'
-                      }`}>
-                         {msg.text}
-                      </div>
-                      <span className="text-[10px] text-slate-400 mt-1 mx-1">{msg.timestamp}</span>
-                   </div>
-                </div>
-             ))}
+             {messages.map((msg) => {
+                const isMe = msg.senderId === currentUser?.id;
+                const sender = users.find(u => u.id === msg.senderId);
+                const senderName = isMe ? 'Moi' : (sender?.name || 'Inconnu');
+                const senderAvatar = sender?.avatar;
+                const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                       {!isMe && (
+                           senderAvatar ? 
+                           <img src={senderAvatar} className="w-8 h-8 rounded-full mt-auto mb-1" alt={senderName} referrerPolicy="no-referrer" /> :
+                           <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 mt-auto mb-1">{senderName.charAt(0)}</div>
+                       )}
+                       <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                          {!isMe && <span className="text-xs text-slate-500 mb-1 ml-1">{senderName}</span>}
+                          <div className={`p-3 rounded-2xl text-sm shadow-sm ${
+                             isMe 
+                             ? 'bg-conisia-purple text-white rounded-tr-sm' 
+                             : 'bg-white text-slate-700 border border-slate-100 rounded-tl-sm'
+                          }`}>
+                             {msg.text}
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-1 mx-1">{timeStr}</span>
+                       </div>
+                    </div>
+                );
+             })}
              <div ref={messagesEndRef} />
           </div>
 
