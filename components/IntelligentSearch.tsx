@@ -189,7 +189,7 @@ export const IntelligentSearch: React.FC = () => {
             
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase mb-4">
-                  {currentUser ? "Documents indexés" : "Exemple de documents indexés"}
+                  {currentUser ? "Documents indexés" : "exemple de document indexés"}
                 </p>
                 <div className="flex flex-wrap gap-2">
                     {currentUser ? (

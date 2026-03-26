@@ -164,18 +164,36 @@ export interface ServiceRequest {
 }
 
 // Group Chat Types
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size: string;
+}
+
 export interface GroupMessage {
     id: string;
     groupId: string;
     senderId: string;
     text: string;
     timestamp: string;
+    attachment?: MessageAttachment;
+}
+
+export interface DirectMessage {
+    id: string;
+    conversationId: string; // e.g., "user1Id_user2Id" sorted alphabetically
+    senderId: string;
+    text: string;
+    timestamp: string;
+    attachment?: MessageAttachment;
 }
 
 export interface Group {
     id: string;
     name: string;
     members: string[];
+    ownerId: string;
     bg: string;
     description: string;
 }

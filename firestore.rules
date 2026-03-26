@@ -133,8 +133,18 @@ service cloud.firestore {
       return hasRequiredFields(['groupId', 'senderId', 'text', 'timestamp']) &&
              data.groupId is string && data.groupId.size() > 0 && data.groupId.size() < 100 &&
              data.senderId is string && data.senderId == request.auth.uid &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 5000 &&
-             data.timestamp is string;
+             data.text is string && data.text.size() < 5000 &&
+             data.timestamp is string &&
+             (!('attachment' in data) || (data.attachment is map && data.attachment.url is string && data.attachment.url.size() < 2000000));
+    }
+
+    function isValidDirectMessage(data) {
+      return hasRequiredFields(['conversationId', 'senderId', 'text', 'timestamp']) &&
+             data.conversationId is string && data.conversationId.size() > 0 && data.conversationId.size() < 200 &&
+             data.senderId is string && data.senderId == request.auth.uid &&
+             data.text is string && data.text.size() < 5000 &&
+             data.timestamp is string &&
+             (!('attachment' in data) || (data.attachment is map && data.attachment.url is string && data.attachment.url.size() < 2000000));
     }
 
     // ===============================================================
@@ -183,6 +193,14 @@ service cloud.firestore {
       // Users can create messages if they are a member of the group
       allow create: if isAuthenticated() && isValidGroupMessage(request.resource.data) && exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)) && request.auth.uid in get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.members;
       allow update: if false; // Messages are immutable
+      allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+    }
+
+    match /direct_messages/{messageId} {
+      // Users can read messages if their uid is in the conversationId (format: uid1_uid2)
+      allow read: if isAuthenticated() && resource.data.conversationId.matches(".*" + request.auth.uid + ".*");
+      allow create: if isAuthenticated() && isValidDirectMessage(request.resource.data) && request.resource.data.conversationId.matches(".*" + request.auth.uid + ".*");
+      allow update: if false;
       allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
     }
   }

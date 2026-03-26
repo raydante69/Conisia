@@ -25,7 +25,7 @@ import { IntelligentSearch } from './IntelligentSearch';
 import { DocumentsView } from './DocumentsView';
 import { RequestsView } from './RequestsView';
 import { MyTasksView } from './MyTasksView';
-import { GroupChatView } from './GroupChatView';
+import { EntrepriseView } from './EntrepriseView';
 import { StatsView } from './StatsView';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { useData } from '../contexts/DataContext';
@@ -242,161 +242,7 @@ const DashboardHome: React.FC<{user: UserProfile, onNavigate: (v: ViewState) => 
   );
 };
 
-const GroupsView: React.FC<{onNavigate: (v: ViewState, id?: string) => void}> = ({onNavigate}) => {
-    const { groups, addGroup, users, currentUser } = useData();
-    const [isCreating, setIsCreating] = useState(false);
-    const [newGroupName, setNewGroupName] = useState('');
-    const [newGroupDesc, setNewGroupDesc] = useState('');
-    
-    // Group Member Search State
-    const [memberSearch, setMemberSearch] = useState('');
-    const [selectedMembers, setSelectedMembers] = useState<{id: string, name: string}[]>([]);
 
-    const filteredColleagues = users.filter(c => 
-        c.id !== currentUser?.id &&
-        c.name.toLowerCase().includes(memberSearch.toLowerCase()) && 
-        !selectedMembers.some(m => m.id === c.id)
-    );
-
-    const handleCreate = () => {
-        if(!newGroupName) return;
-        
-        addGroup({
-            name: newGroupName,
-            description: newGroupDesc || 'Groupe de collaboration',
-            bg: 'from-slate-700 to-slate-900', // Default styling
-            members: selectedMembers.map(m => m.id) // Pass array of user IDs
-        } as any); // We need to update addGroup signature in DataContext
-        setIsCreating(false);
-        setNewGroupName('');
-        setNewGroupDesc('');
-        setMemberSearch('');
-        setSelectedMembers([]);
-    }
-
-    const addMember = (user: UserProfile) => {
-        setSelectedMembers([...selectedMembers, {id: user.id, name: user.name}]);
-        setMemberSearch('');
-    };
-
-    const removeMember = (id: string) => {
-        setSelectedMembers(selectedMembers.filter(m => m.id !== id));
-    };
-
-    return (
-        <div className="h-full animate-fade-in">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-fealty-dark">Groupes Collaboratifs</h2>
-                <div className="flex gap-2">
-                     <Button onClick={() => setIsCreating(true)} variant="white">Créer le premier groupe</Button>
-                     <Button onClick={() => setIsCreating(true)} className="bg-fealty-dark text-white"><Plus size={16} /> Nouveau Groupe</Button>
-                </div>
-            </div>
-
-            {isCreating && (
-                <div className="mb-8 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl animate-slide-up max-w-lg">
-                    <h3 className="font-bold mb-4">Créer un nouveau groupe</h3>
-                    <input 
-                        className="w-full p-3 bg-slate-50 rounded-xl mb-3 border border-slate-100 outline-none focus:ring-2 focus:ring-fealty-dark" 
-                        placeholder="Nom du groupe"
-                        value={newGroupName}
-                        onChange={e => setNewGroupName(e.target.value)}
-                        autoFocus
-                    />
-                     <input 
-                        className="w-full p-3 bg-slate-50 rounded-xl mb-3 border border-slate-100 outline-none focus:ring-2 focus:ring-fealty-dark" 
-                        placeholder="Courte description"
-                        value={newGroupDesc}
-                        onChange={e => setNewGroupDesc(e.target.value)}
-                    />
-                    
-                    {/* User Search & Select */}
-                    <div className="mb-4 relative">
-                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Ajouter des membres</label>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                            {selectedMembers.map(m => (
-                                <span key={m.id} className="bg-fealty-light text-fealty-dark px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-                                    {m.name} <button onClick={() => removeMember(m.id)}><X size={12} /></button>
-                                </span>
-                            ))}
-                        </div>
-                        <div className="relative">
-                            <input 
-                                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:ring-2 focus:ring-fealty-dark pl-9" 
-                                placeholder="Rechercher un collègue..."
-                                value={memberSearch}
-                                onChange={e => setMemberSearch(e.target.value)}
-                            />
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            
-                            {/* Dropdown Results */}
-                            {memberSearch && (
-                                <div className="absolute top-full left-0 w-full bg-white border border-slate-100 rounded-xl mt-1 shadow-xl max-h-40 overflow-y-auto z-20">
-                                    {filteredColleagues.length > 0 ? (
-                                        filteredColleagues.map(c => (
-                                            <div 
-                                                key={c.id} 
-                                                onClick={() => addMember(c)}
-                                                className="p-3 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
-                                            >
-                                                <span className="text-sm font-medium text-slate-800">{c.name}</span>
-                                                <span className="text-xs text-slate-400">{c.role || c.department}</span>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="p-3 text-xs text-slate-400 text-center">Aucun résultat</div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <Button onClick={handleCreate} disabled={!newGroupName}>Créer</Button>
-                        <Button variant="outline" onClick={() => setIsCreating(false)}>Annuler</Button>
-                    </div>
-                </div>
-            )}
-
-            {groups.length === 0 ? (
-                <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-300">
-                        <Users size={40} />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-700 mb-2">Aucun groupe actif</h3>
-                    <p className="text-slate-500 max-w-md mx-auto mb-6">Créez un espace pour votre équipe ou votre projet pour commencer à collaborer.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {groups.map((group, idx) => (
-                        <div key={idx} onClick={() => onNavigate('group-chat', group.id)} className="relative group overflow-hidden rounded-[2rem] bg-white shadow-sm border border-slate-100 hover:border-fealty-green hover:shadow-xl transition-all hover:-translate-y-2 cursor-pointer">
-                            <div className={`h-28 bg-gradient-to-br ${group.bg} relative`}>
-                            <div className="absolute -bottom-6 left-6 w-12 h-12 rounded-xl bg-white shadow-md flex items-center justify-center text-lg font-bold text-slate-800">
-                                {group.name.charAt(0)}
-                            </div>
-                            </div>
-                            <div className="p-6 pt-8">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-lg text-slate-800">{group.name}</h3>
-                                    <span className="px-2 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">{group.members.length} mb</span>
-                                </div>
-                                <p className="text-sm text-slate-500 mb-6 line-clamp-2">{group.description}</p>
-                                <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                                    <div className="flex -space-x-2">
-                                        <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-200" />
-                                    </div>
-                                    <span className="text-xs font-bold text-fealty-green uppercase tracking-wider group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                                    Accéder <ArrowRight size={10} />
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavigate, onLogout }) => {
   const { notifications, markNotificationRead, markAllNotificationsRead, documents, requests } = useData();
@@ -413,7 +259,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
     { id: 'my-tasks', label: 'Mes Tâches', icon: CheckSquare },
     { id: 'requests', label: 'Mes Demandes', icon: Layers },
     { id: 'documents', label: 'Documents', icon: FileText },
-    { id: 'groups', label: 'Groupes', icon: Users },
+    { id: 'groups', label: 'Entreprise', icon: Users },
     { id: 'ai-search', label: 'Assistant IA', icon: Bot },
   ];
 
@@ -432,8 +278,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
       case 'requests': return <RequestsView />;
       case 'my-tasks': return <MyTasksView />;
       case 'stats-view': return <StatsView />;
-      case 'groups': return <GroupsView onNavigate={(view, id) => { if(id) setSelectedGroupId(id); onNavigate(view); }} />;
-      case 'group-chat': return <GroupChatView groupId={selectedGroupId!} onBack={() => { setSelectedGroupId(null); onNavigate('groups'); }} />;
+      case 'groups': return <EntrepriseView />;
       case 'hr-view': return <HRDocsView />;
       case 'directory': return <DirectoryView />;
       case 'calendar': return <CalendarView />;
@@ -492,7 +337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
              onClick={() => setIsProfileModalOpen(true)}
            >
               {user.avatar ? (
-                 <div className="w-10 h-10 rounded-full bg-slate-300 bg-cover bg-center border-2 border-white shadow-sm" style={{backgroundImage: `url("${user.avatar}")`}} />
+                 <img src={user.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" alt={user.name} referrerPolicy="no-referrer" />
               ) : (
                  <div className="w-10 h-10 rounded-full bg-slate-300 border-2 border-white shadow-sm flex items-center justify-center text-slate-500"><Users size={20} /></div>
               )}

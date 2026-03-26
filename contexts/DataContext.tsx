@@ -29,6 +29,8 @@ interface DataContextType {
   togglePinDocument: (id: string) => void;
   updateDocumentDescription: (id: string, description: string) => void;
   addGroup: (group: Omit<Group, 'id'>) => void;
+  updateGroup: (id: string, groupData: Partial<Group>) => void;
+  deleteGroup: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -430,6 +432,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const updateGroup = async (id: string, groupData: Partial<Group>) => {
+    try {
+      const groupRef = doc(db, 'groups', id);
+      await updateDoc(groupRef, groupData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'groups');
+    }
+  }
+
+  const deleteGroup = async (id: string) => {
+    try {
+      const groupRef = doc(db, 'groups', id);
+      await deleteDoc(groupRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'groups');
+    }
+  }
+
   return (
     <DataContext.Provider value={{
       currentUser,
@@ -455,7 +475,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       markAllNotificationsRead,
       togglePinDocument,
       updateDocumentDescription,
-      addGroup
+      addGroup,
+      updateGroup,
+      deleteGroup
     }}>
       {children}
     </DataContext.Provider>
