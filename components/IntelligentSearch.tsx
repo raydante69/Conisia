@@ -90,7 +90,7 @@ export const IntelligentSearch: React.FC = () => {
             <Sparkles className="w-6 h-6 text-green-600" />
           </div>
           <h2 className="text-3xl md:text-5xl font-bold text-fealty-dark mb-4">
-            Recherche <span className="text-transparent bg-clip-text bg-gradient-to-r from-fealty-green to-emerald-600">Contextuelle</span>
+            Assistant <span className="text-transparent bg-clip-text bg-gradient-to-r from-fealty-green to-emerald-600">IA</span>
           </h2>
           <p className="text-slate-500 max-w-2xl mx-auto">
             Posez vos questions sur vos documents. Conisia analyse le contenu en temps réel.
@@ -99,7 +99,7 @@ export const IntelligentSearch: React.FC = () => {
 
         <div className="grid lg:grid-cols-5 gap-8 items-start">
           <div className="lg:col-span-3">
-             <GlassCard className="h-[600px] flex flex-col shadow-2xl border-slate-200 bg-white">
+             <GlassCard className="h-[450px] flex flex-col shadow-2xl border-slate-200 bg-white">
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-fealty-dark flex items-center justify-center text-fealty-green shadow-lg">

@@ -213,12 +213,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubRequestsSent = onSnapshot(qRequestsSent, (snapshot) => handleRequestsSnapshot(snapshot, 'sent'), (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
     const unsubRequestsReceived = onSnapshot(qRequestsReceived, (snapshot) => handleRequestsSnapshot(snapshot, 'received'), (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
 
+    // Listen to Notifications
+    const qNotifs = query(collection(db, 'notifications'), where('userId', '==', currentUser.id));
+    const unsubNotifs = onSnapshot(qNotifs, (snapshot) => {
+      const notifsData: Notification[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        notifsData.push({
+          id: doc.id,
+          userId: data.userId,
+          title: data.title,
+          message: data.message,
+          type: data.type || 'SYSTEM',
+          read: data.read || false,
+          date: data.date || ''
+        });
+      });
+      // Sort by date descending
+      notifsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setNotifications(notifsData);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'notifications'));
+
     return () => {
       unsubDocs();
       unsubGroups();
       unsubUsers();
       unsubRequestsSent();
       unsubRequestsReceived();
+      unsubNotifs();
     };
   }, [isAuthReady, currentUser]);
 
@@ -305,6 +327,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const createNotification = async (notif: Omit<Notification, 'id' | 'read' | 'date'>) => {
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        ...notif,
+        read: false,
+        date: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'notifications');
+    }
+  };
+
   const shareDocument = async (docId: string, targetId: string, type: 'USER' | 'GROUP', access: 'READ' | 'EDIT') => {
     const docToUpdate = documents.find(d => d.id === docId);
     if (!docToUpdate) return;
@@ -317,6 +351,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await updateDoc(doc(db, 'documents', docId), {
         permissions: [...docToUpdate.permissions, newPerm]
       });
+
+      // Notify target user
+      if (type === 'USER') {
+        await createNotification({
+          userId: targetId,
+          title: 'Document partagé',
+          message: `${currentUser?.name} a partagé le document "${docToUpdate.name}" avec vous.`,
+          type: 'SHARE'
+        });
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'documents');
     }
@@ -339,6 +383,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         assignedTo: req.assignedTo,
         createdAt: new Date().toISOString()
       });
+
+      // Notify assigned user if any
+      if (req.assignedTo) {
+        const assignedUser = users.find(u => u.name === req.assignedTo);
+        if (assignedUser) {
+          await createNotification({
+            userId: assignedUser.id,
+            title: 'Nouvelle tâche assignée',
+            message: `${currentUser.name} vous a assigné la tâche : "${req.title}"`,
+            type: 'SYSTEM'
+          });
+        }
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'requests');
     }
@@ -406,12 +463,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const markNotificationRead = (id: string) => {
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markNotificationRead = async (id: string) => {
+      try {
+        await updateDoc(doc(db, 'notifications', id), { read: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, 'notifications');
+      }
   };
 
-  const markAllNotificationsRead = () => {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllNotificationsRead = async () => {
+      const unreadNotifs = notifications.filter(n => !n.read);
+      try {
+        await Promise.all(unreadNotifs.map(n => updateDoc(doc(db, 'notifications', n.id), { read: true })));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, 'notifications');
+      }
   };
 
   const addGroup = async (groupData: Omit<Group, 'id'>) => {

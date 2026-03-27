@@ -193,7 +193,7 @@ export interface Group {
     id: string;
     name: string;
     members: string[];
-    ownerId: string;
+    ownerId?: string;
     bg: string;
     description: string;
 }

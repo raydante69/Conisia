@@ -143,11 +143,6 @@ export const DocumentsView: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <a href="https://benchmark-ia-887853840124.us-west1.run.app/#/" target="_blank" rel="noopener noreferrer">
-              <Button variant="white" className="border-slate-200 text-slate-700 hover:text-conisia-purple hover:border-conisia-purple">
-                  <ExternalLink size={18} /> Benchmark IA
-              </Button>
-          </a>
           <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
           <Button 
             onClick={() => { setIsBulkMode(!isBulkMode); setSelectedDocs(new Set()); }} 

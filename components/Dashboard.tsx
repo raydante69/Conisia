@@ -120,12 +120,13 @@ const CalendarView = () => (
 );
 
 const DashboardHome: React.FC<{user: UserProfile, onNavigate: (v: ViewState) => void}> = ({user, onNavigate}) => {
-  const { documents, requests, groups } = useData();
+  const { documents, requests } = useData();
   
-  // Calculate stats based on real data
-  const docCount = documents.length;
-  const reqCount = requests.length;
-  const tasksCount = requests.filter(r => r.assignedTo === user.id).length;
+  // Get tasks assigned to me, not done, sorted by date (chronological)
+  const myTasks = requests
+    .filter(r => r.assignedTo === user.id && r.status !== 'DONE')
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
   const recentDocs = documents.slice(0, 4);
 
   return (
@@ -137,67 +138,43 @@ const DashboardHome: React.FC<{user: UserProfile, onNavigate: (v: ViewState) => 
         </div>
       </div>
 
-      {/* Interactive Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div onClick={() => onNavigate('documents')} className="cursor-pointer group">
-          <div className="p-6 flex flex-col justify-between h-44 bg-white rounded-[2rem] border border-slate-100 hover:border-fealty-green transition-all hover:shadow-xl hover:shadow-green-500/5 hover:-translate-y-1 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-fealty-green/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="flex justify-between items-start relative z-10">
-              <div className="p-3 bg-fealty-light text-fealty-dark rounded-2xl group-hover:bg-fealty-green group-hover:text-white transition-colors">
-                <FileText size={24} />
-              </div>
-            </div>
-            <div className="relative z-10">
-              <p className="text-slate-500 text-sm font-medium">Documents</p>
-              <p className="text-3xl font-bold text-slate-800 mt-1">{docCount}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div onClick={() => onNavigate('requests')} className="cursor-pointer group">
-          <div className="p-6 flex flex-col justify-between h-44 bg-white rounded-[2rem] border border-slate-100 hover:border-purple-300 transition-all hover:shadow-xl hover:shadow-purple-500/5 hover:-translate-y-1 relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="flex justify-between items-start relative z-10">
-              <div className="p-3 bg-fealty-light text-fealty-dark rounded-2xl group-hover:bg-purple-500 group-hover:text-white transition-colors">
-                <Layers size={24} />
-              </div>
-            </div>
-            <div className="relative z-10">
-              <p className="text-slate-500 text-sm font-medium">Demandes</p>
-              <p className="text-3xl font-bold text-slate-800 mt-1">{reqCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div onClick={() => onNavigate('groups')} className="cursor-pointer group">
-          <div className="p-6 flex flex-col justify-between h-44 bg-white rounded-[2rem] border border-slate-100 hover:border-blue-300 transition-all hover:shadow-xl hover:shadow-blue-500/5 hover:-translate-y-1 relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="flex justify-between items-start relative z-10">
-              <div className="p-3 bg-fealty-light text-fealty-dark rounded-2xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                <Users size={24} />
-              </div>
-            </div>
-            <div className="relative z-10">
-              <p className="text-slate-500 text-sm font-medium">Groupes Actifs</p>
-              <p className="text-3xl font-bold text-slate-800 mt-1">{groups.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <h3 className="font-bold text-xl text-fealty-dark flex items-center gap-2">
-              Actualités
+              Tâches prioritaires
           </h3>
-          <div className="p-8 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
-             <div className="w-16 h-16 bg-fealty-mint rounded-2xl flex items-center justify-center text-fealty-green mb-4">
-                 <Bot size={32} />
-             </div>
-             <h4 className="text-xl font-bold text-slate-800 mb-2">Bienvenue sur Conisia V1</h4>
-             <p className="text-slate-500 max-w-md">
-                 Ceci est le début de votre nouvelle plateforme. Les actualités de l'entreprise et les annonces importantes apparaîtront ici.
-             </p>
+          <div className="space-y-4">
+             {myTasks.length > 0 ? (
+               myTasks.map((task) => (
+                 <div key={task.id} onClick={() => onNavigate('my-tasks')} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group">
+                    <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-2xl ${task.priority === 'HIGH' ? 'bg-red-50 text-red-600' : task.priority === 'MEDIUM' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
+                            <CheckSquare size={24} />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-slate-800 group-hover:text-fealty-dark transition-colors">{task.title}</h4>
+                            <p className="text-xs text-slate-500">Créé le : {task.createdAt}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${task.priority === 'HIGH' ? 'bg-red-100 text-red-700' : task.priority === 'MEDIUM' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {task.priority}
+                        </span>
+                        <ChevronRight size={18} className="text-slate-300 group-hover:text-fealty-dark transition-transform group-hover:translate-x-1" />
+                    </div>
+                 </div>
+               ))
+             ) : (
+               <div className="p-12 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 bg-fealty-mint rounded-2xl flex items-center justify-center text-fealty-green mb-4">
+                      <Check size={32} />
+                  </div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-2">Aucune tâche urgente</h4>
+                  <p className="text-slate-500 max-w-md">
+                      Vous n'avez aucune tâche assignée en attente pour le moment.
+                  </p>
+               </div>
+             )}
           </div>
         </div>
 
@@ -358,57 +335,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, currentView, onNavig
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC]">
-        <header className="h-24 bg-white/80 backdrop-blur-md sticky top-0 z-10 px-8 flex items-center justify-between border-b border-slate-100">
-           <div>
-             <h1 className="text-xl font-bold text-fealty-dark capitalize hidden md:block">
-               {currentView === 'group-chat' ? 'Discussion' : 
-                (currentView === 'ai-search' ? 'Intelligence Artificielle' : 
-                 (currentView === 'requests' ? 'Mes Demandes Envoyées' : 
-                 (currentView === 'my-tasks' ? 'Mes Tâches Assignées' : 
-                  (currentView === 'stats-view' ? 'Statistiques Globales' :
-                  (currentView === 'dashboard' ? 'Vue d\'ensemble' : currentView)))))}
-             </h1>
-           </div>
-           
-           <div className="flex items-center gap-6 ml-auto">
-              {/* Global Search */}
-              <div className="relative hidden md:block group">
-                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-fealty-dark transition-colors" size={18} />
-                 <input 
-                   type="text" 
-                   value={searchQuery}
-                   onChange={(e) => setSearchQuery(e.target.value)}
-                   placeholder="Rechercher..." 
-                   className="pl-12 pr-4 py-3 rounded-full bg-slate-100 border-none focus:ring-2 focus:ring-fealty-dark/10 w-72 text-sm font-medium transition-all focus:w-80"
-                />
-                
-                {/* Search Results Dropdown */}
-                {showSearchResults && (
-                    <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-slide-up z-50">
-                        {filteredDocuments.length > 0 && (
-                            <div className="p-3 border-b border-slate-50">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">Documents</p>
-                                {filteredDocuments.slice(0, 3).map(d => (
-                                    <div key={d.id} onClick={() => { onNavigate('documents'); setSearchQuery(''); }} className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center gap-2">
-                                        <File size={14} className="text-slate-400" /> <span className="text-sm text-slate-700 truncate">{d.name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {filteredRequests.length > 0 && (
-                            <div className="p-3 border-b border-slate-50">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">Demandes</p>
-                                {filteredRequests.slice(0, 3).map(r => (
-                                    <div key={r.id} onClick={() => { onNavigate(r.createdBy === 'me' ? 'requests' : 'my-tasks'); setSearchQuery(''); }} className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center gap-2">
-                                        <Layers size={14} className="text-slate-400" /> <span className="text-sm text-slate-700 truncate">{r.title}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-              </div>
-              
+        <header className="h-0 bg-transparent sticky top-0 z-20 pl-[7px] pr-[26px] flex items-start justify-end pointer-events-none">
+           <div className="flex items-center gap-6 mt-[100px] pointer-events-auto">
               <div className="relative">
                   <button 
                       onClick={() => setShowNotifications(!showNotifications)}
